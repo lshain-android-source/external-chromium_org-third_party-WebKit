@@ -162,16 +162,6 @@ void PageScaleConstraintsSet::adjustForAndroidWebViewQuirks(const ViewportArgume
             adjustedLayoutSizeWidth /= targetDensityDPIFactor;
             adjustedLayoutSizeHeight /= targetDensityDPIFactor;
         }
-
-        // In the following cases, a bug in the Classic WebView would mean that the viewport meta tag would take
-        // precedence over the app specified setInitialScale value. We keep bugward compatibility with the old
-        // WebView for legacy apps (the supportTargetDensityDPI case). New apps will see that setInitialScale()
-        // overrides what is specified in the viewport tag.
-        if (arguments.width == ViewportArguments::ValueAuto && m_pageDefinedConstraints.initialScale == 1.0f) {
-            m_userAgentConstraints.initialScale = -1;
-        } else if (arguments.width == ViewportArguments::ValueDeviceWidth || arguments.width == 320) {
-            m_userAgentConstraints.initialScale = -1;
-        }
     }
 
     if (wideViewportQuirkEnabled) {
@@ -181,12 +171,24 @@ void PageScaleConstraintsSet::adjustForAndroidWebViewQuirks(const ViewportArgume
         } else if (!useWideViewport) {
             const float nonWideScale = arguments.zoom < 1 && arguments.width != ViewportArguments::ValueDeviceWidth ? -1 : oldInitialScale;
             adjustedLayoutSizeWidth = getLayoutWidthForNonWideViewport(viewSize, nonWideScale) / targetDensityDPIFactor;
+            if (m_userAgentConstraints.initialScale != -1 && (arguments.width == ViewportArguments::ValueDeviceWidth || (arguments.width == -1 && arguments.zoom == -1)))
+                adjustedLayoutSizeWidth /= m_userAgentConstraints.initialScale;
             adjustedLayoutSizeHeight = computeHeightByAspectRatio(adjustedLayoutSizeWidth, viewSize);
             if (arguments.zoom < 1) {
                 m_pageDefinedConstraints.initialScale = targetDensityDPIFactor;
                 m_pageDefinedConstraints.minimumScale = std::min<float>(m_pageDefinedConstraints.minimumScale, m_pageDefinedConstraints.initialScale);
                 m_pageDefinedConstraints.maximumScale = std::max<float>(m_pageDefinedConstraints.maximumScale, m_pageDefinedConstraints.initialScale);
             }
+        }
+    }
+
+    if (supportTargetDensityDPI && !arguments.userZoom) {
+        m_pageDefinedConstraints.initialScale = targetDensityDPIFactor;
+        m_pageDefinedConstraints.minimumScale = m_pageDefinedConstraints.initialScale;
+        m_pageDefinedConstraints.maximumScale = m_pageDefinedConstraints.initialScale;
+        if (arguments.width == -1 || arguments.width == ViewportArguments::ValueDeviceWidth) {
+            adjustedLayoutSizeWidth = viewSize.width() / targetDensityDPIFactor;
+            adjustedLayoutSizeHeight = computeHeightByAspectRatio(adjustedLayoutSizeWidth, viewSize);
         }
     }
 
